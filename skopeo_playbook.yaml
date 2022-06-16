@@ -1,0 +1,36 @@
+---
+  - name: Copy Images With Skopeo
+    hosts: localhost
+    vars:
+      source_registry: docker.io
+      destination_registry: docker.io #388565714261.dkr.ecr.us-east-2.amazonaws.com
+      source_images:
+        - repository: smigula
+          name: webhook
+          tags: ["0.1.0","0.2.0","0.2.1","0.2.3"]
+      source_credentials: "" #username:password
+      destination_credentials: "" #username:password
+    tasks:
+      - name: Make sure creds are not empty
+        when: source_credentials == "" or destination_credentials == ""
+        fail: msg="Credentials cannot be empty"
+      - name: Verify Skopeo Installed
+        shell: which skopeo
+        register: skbin
+      - shell: skopeo --version
+        register: sk
+      - name: Print Skopeo Version
+        debug: msg="{{sk.stdout_lines}}"
+      - name: Copy Images
+        shell:
+          cmd: skopeo copy --src-creds "{{ source_credentials }}" --dest-creds "{{ destination_credentials }}" "docker://{{source_registry}}/{{item.0.repository}}/{{item.0.name}}:{{item.1}}" "docker://{{destination_registry}}/{{item.0.repository}}/{{item.0.name}}:{{item.1}}"
+        register: copyimage
+        with_subelements:
+        - "{{source_images}}"
+        - tags
+        loop_control:
+          index_var: idx
+      - name: "show copy output"
+        debug: msg="{{ copyimage.results | map(attribute='stdout') | join('\n') }}"
+
+# ref: https://kubebyexample.com/en/learning-paths/container-fundamentals/tools/introduction
